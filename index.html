@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电影备忘录 · 可点击原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #14101f; --card: #1f1930; --field: #171226;
+    --text: #f2eef9; --dim: #9a8fb5; --ph: #6f6590;
+    --accent: #ffb84d; --want: #2ec4b6; --danger: #ff6b81;
+  }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: radial-gradient(1200px 800px at 20% 10%, #241b3d 0%, #0c0916 60%);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    gap: 48px; padding: 32px; color: var(--text); flex-wrap: wrap;
+  }
+
+  /* 侧边说明 */
+  .side { max-width: 320px; color: var(--dim); font-size: 14px; line-height: 2; }
+  .side h1 { color: var(--text); font-size: 24px; margin-bottom: 12px; }
+  .side code { background: var(--card); padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+  .side .path { color: var(--accent); font-weight: 600; }
+
+  /* 手机外壳 */
+  .phone {
+    width: 390px; height: 780px; border-radius: 48px; padding: 12px;
+    background: #000; box-shadow: 0 40px 80px rgba(0,0,0,.6), inset 0 0 0 2px #333;
+    flex-shrink: 0;
+  }
+  .screen {
+    width: 100%; height: 100%; border-radius: 38px; overflow: hidden;
+    background: var(--bg); position: relative; display: flex; flex-direction: column;
+  }
+
+  /* 状态栏 + 导航栏 */
+  .statusbar {
+    height: 28px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; font-size: 11px; color: var(--text); flex-shrink: 0;
+  }
+  .navbar {
+    height: 44px; display: flex; align-items: center; justify-content: center;
+    position: relative; flex-shrink: 0; font-size: 15px; font-weight: 600;
+  }
+  .nav-back {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--dim); font-size: 18px; cursor: pointer; padding: 4px 8px; user-select: none;
+  }
+
+  /* 屏幕页 */
+  .page {
+    position: absolute; inset: 72px 0 0 0; overflow-y: auto; overflow-x: hidden;
+    padding: 16px 16px 120px; display: none; scrollbar-width: none;
+  }
+  .page::-webkit-scrollbar { display: none; }
+  .page.active { display: block; animation: slideIn .25s ease; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+
+  .card { background: var(--card); border-radius: 14px; }
+  .dim { color: var(--dim); }
+
+  /* ===== 首页 ===== */
+  .hero-title { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+  .stats { display: flex; gap: 10px; margin-top: 14px; }
+  .stat {
+    flex: 1; background: linear-gradient(160deg, #241b3d, #1a1429);
+    border-radius: 14px; padding: 14px 0; text-align: center;
+  }
+  .stat-num { font-size: 24px; font-weight: 700; }
+  .stat-num.a { color: var(--accent); } .stat-num.w { color: var(--want); }
+  .stat-label { font-size: 11px; color: var(--dim); margin-top: 4px; }
+
+  .search {
+    display: flex; align-items: center; gap: 8px; margin-top: 14px;
+    padding: 10px 14px; border-radius: 14px; background: var(--card);
+  }
+  .search input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text); font-size: 13px;
+  }
+  .search input::placeholder { color: var(--ph); }
+  .clear-x { color: var(--dim); cursor: pointer; padding: 0 4px; }
+
+  .tabs { display: flex; gap: 8px; margin-top: 14px; }
+  .tab {
+    padding: 6px 18px; border-radius: 999px; font-size: 12px;
+    background: var(--card); color: var(--dim); cursor: pointer; user-select: none;
+  }
+  .tab.on { background: var(--accent); color: var(--bg); font-weight: 600; }
+
+  .movie { display: flex; align-items: center; padding: 12px; margin-top: 12px; cursor: pointer; }
+  .poster {
+    width: 56px; height: 76px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 700; color: rgba(255,255,255,.9);
+  }
+  .m-body { flex: 1; margin-left: 12px; min-width: 0; }
+  .m-name { font-size: 15px; font-weight: 600; }
+  .fav { color: var(--accent); margin-left: 4px; font-size: 13px; }
+  .m-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; }
+  .badge-watched { background: rgba(255,184,77,.15); color: var(--accent); }
+  .badge-want { background: rgba(46,196,182,.15); color: var(--want); }
+  .m-date { font-size: 11px; }
+  .m-review {
+    font-size: 11px; margin-top: 6px; color: var(--dim);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .m-rating { text-align: center; margin-left: 8px; }
+  .r-num { font-size: 17px; font-weight: 700; color: var(--accent); }
+  .r-star { color: var(--accent); font-size: 11px; }
+
+  .empty { text-align: center; padding: 60px 0; color: var(--dim); font-size: 13px; }
+  .empty-icon { font-size: 44px; margin-bottom: 12px; }
+
+  .backup-link {
+    text-align: center; font-size: 12px; color: var(--dim);
+    margin-top: 20px; padding: 10px; cursor: pointer;
+  }
+  .fab {
+    position: absolute; right: 20px; bottom: 32px; width: 52px; height: 52px;
+    border-radius: 50%; background: linear-gradient(135deg, #ffb84d, #ff8a4d);
+    color: var(--bg); font-size: 30px; font-weight: 300;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(255,160,60,.35); cursor: pointer; z-index: 5;
+  }
+
+  /* ===== 表单 ===== */
+  .field { padding: 14px; margin-bottom: 12px; }
+  .label { font-size: 12px; color: var(--dim); margin-bottom: 10px; }
+  .label-row { display: flex; align-items: center; justify-content: space-between; }
+  .label-row .label { margin-bottom: 0; }
+  .required { color: var(--danger); }
+  .input, .textarea, .picker {
+    width: 100%; background: var(--field); border-radius: 10px; border: 1px solid transparent;
+    padding: 10px 12px; font-size: 14px; color: var(--text); outline: none;
+    font-family: inherit;
+  }
+  .input.err { border-color: var(--danger); }
+  .input::placeholder, .textarea::placeholder { color: var(--ph); }
+  .err-text { color: var(--danger); font-size: 11px; margin-top: 6px; }
+  .seg { display: flex; gap: 8px; }
+  .seg-item {
+    flex: 1; text-align: center; padding: 10px 0; border-radius: 10px;
+    background: var(--field); color: var(--dim); font-size: 13px; cursor: pointer;
+  }
+  .seg-item.on-watched { background: rgba(255,184,77,.18); color: var(--accent); font-weight: 600; }
+  .seg-item.on-want { background: rgba(46,196,182,.18); color: var(--want); font-weight: 600; }
+
+  .switch {
+    width: 42px; height: 24px; border-radius: 999px; background: #3a3152;
+    position: relative; cursor: pointer; transition: background .2s; flex-shrink: 0;
+  }
+  .switch::after {
+    content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    border-radius: 50%; background: #fff; transition: transform .2s;
+  }
+  .switch.on { background: var(--accent); }
+  .switch.on::after { transform: translateX(18px); }
+
+  .rating-big { font-size: 26px; font-weight: 700; color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin-top: 8px; }
+  .picker { cursor: pointer; } .picker.ph-t { color: var(--ph); }
+  .clear-link { font-size: 11px; color: var(--dim); cursor: pointer; padding: 4px; }
+  .counter { font-size: 11px; }
+  .textarea { min-height: 90px; resize: vertical; }
+
+  .btn {
+    width: 100%; border: none; border-radius: 999px; padding: 13px;
+    font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: linear-gradient(135deg, #ffb84d, #ff8a4d); color: var(--bg); margin-top: 20px; }
+
+  /* ===== 详情 ===== */
+  .d-hero {
+    height: 150px; margin: -16px -16px 0; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 68px; font-weight: 700; color: rgba(255,255,255,.9);
+  }
+  .d-name-row { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+  .d-name { font-size: 22px; font-weight: 700; }
+  .fav-big { color: var(--accent); font-size: 12px; }
+  .d-meta { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; }
+  .section { margin-top: 14px; padding: 14px; }
+  .section-title { font-size: 12px; color: var(--dim); margin-bottom: 10px; }
+  .r-line { display: flex; align-items: baseline; gap: 6px; }
+  .r-big { font-size: 30px; font-weight: 700; color: var(--accent); }
+  .review-text { font-size: 13px; line-height: 1.8; }
+  .actions {
+    position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 12px;
+    padding: 12px 16px 20px; background: rgba(20,16,31,.95);
+  }
+  .actions .btn { margin: 0; flex: 1; font-size: 14px; padding: 11px; }
+  .btn-edit { background: var(--accent); color: var(--bg); }
+  .btn-del { background: rgba(255,107,129,.12); color: var(--danger); }
+
+  /* ===== 备份 ===== */
+  .tip { padding: 14px; margin-bottom: 12px; }
+  .tip-title { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .tip-desc { font-size: 12px; line-height: 1.8; }
+  .json-view {
+    width: 100%; height: 140px; background: var(--field); border: none; border-radius: 10px;
+    padding: 10px; margin-top: 10px; font-size: 10px; color: #c9bde0;
+    font-family: monospace; resize: none; outline: none;
+  }
+  .btn-export { background: var(--accent); color: var(--bg); margin-top: 0; }
+  .btn-import { background: rgba(255,138,77,.15); color: #ff8a4d; margin-top: 10px; }
+
+  /* toast & modal */
+  .toast {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    background: rgba(0,0,0,.8); color: #fff; padding: 10px 20px; border-radius: 10px;
+    font-size: 13px; z-index: 50; opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .modal-mask {
+    position: absolute; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: center; justify-content: center; z-index: 40;
+  }
+  .modal-mask.show { display: flex; }
+  .modal { width: 78%; background: #262040; border-radius: 16px; overflow: hidden; }
+  .modal-title { text-align: center; font-weight: 700; padding: 18px 16px 6px; font-size: 15px; }
+  .modal-content { text-align: center; color: var(--dim); font-size: 13px; padding: 8px 20px 18px; line-height: 1.6; }
+  .modal-btns { display: flex; border-top: 1px solid #3a3152; }
+  .modal-btns div {
+    flex: 1; text-align: center; padding: 13px; font-size: 14px; cursor: pointer; color: var(--dim);
+  }
+  .modal-btns div + div { border-left: 1px solid #3a3152; }
+  .modal-btns .ok { color: var(--danger); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="side">
+  <h1>电影备忘录 · 原型</h1>
+  <p>共 <b>4 个屏幕</b>，最短路径：</p>
+  <p><span class="path">① 首页</span> → 统计 / 搜索 / 筛选 / 列表<br>
+  <span class="path">② 新增/编辑</span> → 点右下角 ＋ 或详情页"编辑"<br>
+  <span class="path">③ 详情</span> → 点任意电影卡片，可二次确认删除<br>
+  <span class="path">④ 数据备份</span> → 首页底部入口，导出/导入 JSON</p>
+  <p>数据存在浏览器 <code>localStorage</code>，刷新不丢。</p>
+</div>
+
+<div class="phone">
+  <div class="screen" id="screen">
+    <div class="statusbar"><span>9:41</span><span>📶 🔋</span></div>
+    <div class="navbar">
+      <span class="nav-back" id="navBack" style="display:none" onclick="goBack()">‹</span>
+      <span id="navTitle">电影备忘录</span>
+    </div>
+
+    <!-- ① 首页 -->
+    <div class="page active" id="page-home">
+      <div class="hero-title">我的电影备忘录</div>
+      <div class="stats">
+        <div class="stat"><div class="stat-num" id="sTotal">0</div><div class="stat-label">电影总数</div></div>
+        <div class="stat"><div class="stat-num a" id="sWatched">0</div><div class="stat-label">已看</div></div>
+        <div class="stat"><div class="stat-num w" id="sWant">0</div><div class="stat-label">想看</div></div>
+      </div>
+      <div class="search">
+        <span>🔍</span>
+        <input id="searchInput" placeholder="搜索电影名称" oninput="onSearch(this.value)">
+        <span class="clear-x" id="searchClear" style="display:none" onclick="clearSearch()">✕</span>
+      </div>
+      <div class="tabs" id="tabs">
+        <div class="tab on" data-v="all" onclick="setFilter('all')">全部</div>
+        <div class="tab" data-v="watched" onclick="setFilter('watched')">已看</div>
+        <div class="tab" data-v="want" onclick="setFilter('want')">想看</div>
+      </div>
+      <div id="list"></div>
+      <div class="backup-link" onclick="go('backup')">数据备份（导出 / 导入 JSON） ›</div>
+      <div class="fab" onclick="go('edit')">＋</div>
+    </div>
+
+    <!-- ② 新增/编辑 -->
+    <div class="page" id="page-edit">
+      <div class="field card">
+        <div class="label">电影名称 <span class="required">*</span></div>
+        <input class="input" id="fName" placeholder="请输入电影名称" oninput="f.name=this.value;this.classList.remove('err');hideErr()">
+        <div class="err-text" id="fNameErr" style="display:none">电影名称不能为空</div>
+      </div>
+      <div class="field card">
+        <div class="label">状态</div>
+        <div class="seg">
+          <div class="seg-item on-watched" id="segWatched" onclick="setStatus('watched')">已看</div>
+          <div class="seg-item" id="segWant" onclick="setStatus('want')">想看</div>
+        </div>
+      </div>
+      <div class="field card">
+        <div class="label-row">
+          <div class="label">评分（可选）</div>
+          <div class="switch" id="fRatingSw" onclick="toggleRating()"></div>
+        </div>
+        <div id="ratingArea" style="display:none">
+          <div style="margin-top:8px"><span class="rating-big" id="fRatingText">8.0</span><span class="dim"> / 10</span></div>
+          <input type="range" min="0" max="20" step="1" value="16" id="fRating" oninput="onRating(this.value)">
+        </div>
+      </div>
+      <div class="field card">
+        <div class="label-row">
+          <div class="label">观影日期（可选）</div>
+          <span class="clear-link" id="dateClear" style="display:none" onclick="clearDate()">清除</span>
+        </div>
+        <input type="date" class="picker ph-t" id="fDate" style="margin-top:10px" onchange="f.date=this.value;onDateUI()">
+      </div>
+      <div class="field card">
+        <div class="label-row">
+          <div class="label">收藏 <span style="color:var(--accent)">★</span></div>
+          <div class="switch" id="fFavSw" onclick="toggleFav()"></div>
+        </div>
+      </div>
+      <div class="field card">
+        <div class="label-row">
+          <div class="label">短评（可选）</div>
+          <div class="counter dim" id="fCounter">0/500</div>
+        </div>
+        <textarea class="textarea" id="fReview" placeholder="写下你的观影感受…" maxlength="500"
+          style="margin-top:10px" oninput="f.review=this.value;document.getElementById('fCounter').textContent=this.value.length+'/500'"></textarea>
+      </div>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveMovie()">添加电影</button>
+    </div>
+
+    <!-- ③ 详情 -->
+    <div class="page" id="page-detail">
+      <div class="d-hero" id="dHero">影</div>
+      <div class="d-name-row">
+        <div class="d-name" id="dName"></div>
+        <span class="fav-big" id="dFav"></span>
+      </div>
+      <div class="d-meta" id="dMeta"></div>
+      <div class="section card">
+        <div class="section-title">我的评分</div>
+        <div class="r-line" id="dRating"></div>
+      </div>
+      <div class="section card">
+        <div class="section-title">短评</div>
+        <div class="review-text" id="dReview"></div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-edit" onclick="go('edit', currentId)">编辑</button>
+        <button class="btn btn-del" onclick="askDelete()">删除</button>
+      </div>
+    </div>
+
+    <!-- ④ 备份 -->
+    <div class="page" id="page-backup">
+      <div class="tip card">
+        <div class="tip-title">数据备份</div>
+        <div class="tip-desc dim">当前共 <span id="bTotal">0</span> 条记录。导出会把全部数据生成 JSON 并下载文件；导入支持选择 JSON 文件或粘贴文本。</div>
+      </div>
+      <div class="section card">
+        <div class="section-title">导出</div>
+        <button class="btn btn-export" onclick="exportJson()">导出为 JSON 文件</button>
+      </div>
+      <div class="section card">
+        <div class="section-title">导入</div>
+        <button class="btn btn-export" style="background:#3a3152;color:var(--text)" onclick="document.getElementById('fileInput').click()">选择 JSON 文件…</button>
+        <input type="file" id="fileInput" accept=".json,application/json" style="display:none" onchange="onFilePicked(this)">
+        <textarea class="json-view" id="importText" placeholder="或直接粘贴 JSON 文本…"></textarea>
+        <button class="btn btn-import" onclick="askImport()">校验并导入（覆盖现有数据）</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="modal-mask" id="modalMask">
+      <div class="modal">
+        <div class="modal-title" id="mTitle"></div>
+        <div class="modal-content" id="mContent"></div>
+        <div class="modal-btns">
+          <div onclick="closeModal(false)" id="mCancel">取消</div>
+          <div class="ok" onclick="closeModal(true)" id="mOk">确定</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= 数据层（localStorage） ================= */
+const KEY = 'movie_memo_list';
+const SAMPLE = [
+  { id:'m1001', name:'星际穿越', status:'watched', rating:9.5, date:'2024-11-08', favorite:true,  review:'诺兰把硬核科幻拍出了亲情温度，结尾书架一段看哭了。', createdAt:1731024000000 },
+  { id:'m1002', name:'千与千寻', status:'watched', rating:9.2, date:'2024-06-21', favorite:true,  review:'每隔几年重看一次都有新感受，汤屋的世界永远迷人。', createdAt:1718899200000 },
+  { id:'m1003', name:'沙丘2',   status:'watched', rating:8.5, date:'2025-03-16', favorite:false, review:'视效顶级，沙虫骑行段落值回票价。', createdAt:1742054400000 },
+  { id:'m1004', name:'花样年华', status:'watched', rating:8.8, date:'',           favorite:false, review:'旗袍、雨巷、未说出口的话，王家卫的克制美学。', createdAt:1722470400000 },
+  { id:'m1005', name:'奥本海默', status:'want',    rating:null, date:'',          favorite:true,  review:'', createdAt:1748736000000 },
+  { id:'m1006', name:'你想活出怎样的人生', status:'want', rating:null, date:'', favorite:false, review:'宫崎骏收官之作，找时间补。', createdAt:1751328000000 }
+];
+function load() {
+  try { const v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? v : null; }
+  catch(e){ return null; }
+}
+function save(list) { localStorage.setItem(KEY, JSON.stringify(list)); }
+let movies = load();
+if (!movies || !movies.length) { movies = SAMPLE.slice(); save(movies); }
+
+const COLORS = ['#6d4aff','#ff6b81','#2ec4b6','#ffb84d','#4d96ff','#c77dff'];
+function colorOf(name){ let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))%997; return COLORS[h%COLORS.length]; }
+
+/* ================= 路由 ================= */
+const TITLES = { home:'电影备忘录', edit:'新增电影', detail:'电影详情', backup:'数据备份' };
+let stack = ['home'];
+let currentId = null;     // 详情/编辑目标
+let filter = 'all', keyword = '';
+
+function go(page, id) {
+  if (id !== undefined) currentId = id;
+  if (page === 'edit') prepareEdit(currentId);
+  if (page === 'backup') document.getElementById('bTotal').textContent = movies.length;
+  stack.push(page);
+  render();
+}
+function goBack() {
+  if (stack.length > 1) stack.pop();
+  const top = stack[stack.length-1];
+  if (top !== 'detail') currentId = null;
+  render();
+}
+function render() {
+  const top = stack[stack.length-1];
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + top);
+  el.classList.remove('active'); void el.offsetWidth; el.classList.add('active');
+  document.getElementById('navTitle').textContent =
+    top === 'edit' ? (currentId ? '编辑电影' : '新增电影') : TITLES[top];
+  document.getElementById('navBack').style.display = stack.length > 1 ? 'block' : 'none';
+  if (top === 'home') renderHome();
+  if (top === 'detail') renderDetail();
+}
+
+/* ================= 首页 ================= */
+function renderHome() {
+  const kw = keyword.trim().toLowerCase();
+  const list = movies
+    .filter(m => filter === 'all' || m.status === filter)
+    .filter(m => !kw || m.name.toLowerCase().includes(kw));
+  document.getElementById('sTotal').textContent = movies.length;
+  document.getElementById('sWatched').textContent = movies.filter(m=>m.status==='watched').length;
+  document.getElementById('sWant').textContent = movies.filter(m=>m.status==='want').length;
+
+  const box = document.getElementById('list');
+  if (!list.length) {
+    box.innerHTML = '<div class="empty"><div class="empty-icon">🎬</div>没有找到相关电影，点右下角 ＋ 记录一部吧</div>';
+    return;
+  }
+  box.innerHTML = list.map(m => `
+    <div class="movie card" onclick="go('detail','${m.id}')">
+      <div class="poster" style="background:${colorOf(m.name)}">${m.name[0]}</div>
+      <div class="m-body">
+        <div class="m-name">${esc(m.name)}${m.favorite ? '<span class="fav">★</span>' : ''}</div>
+        <div class="m-meta">
+          <span class="badge badge-${m.status}">${m.status==='watched'?'已看':'想看'}</span>
+          ${m.date ? `<span class="m-date dim">${m.date}</span>` : ''}
+        </div>
+        ${m.review ? `<div class="m-review">${esc(m.review)}</div>` : ''}
+      </div>
+      <div class="m-rating">
+        <div class="r-num">${m.rating==null?'未评分':m.rating.toFixed(1)}</div>
+        ${m.rating!=null?'<div class="r-star">★</div>':''}
+      </div>
+    </div>`).join('');
+}
+function onSearch(v) {
+  keyword = v;
+  document.getElementById('searchClear').style.display = v ? 'block' : 'none';
+  renderHome();
+}
+function clearSearch() {
+  keyword = ''; document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').style.display = 'none';
+  renderHome();
+}
+function setFilter(v) {
+  filter = v;
+  document.querySelectorAll('#tabs .tab').forEach(t => t.classList.toggle('on', t.dataset.v === v));
+  renderHome();
+}
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+/* ================= 新增 / 编辑 ================= */
+let f = {};
+function prepareEdit(id) {
+  const m = id ? movies.find(x => x.id === id) : null;
+  if (id && !m) { toast('记录不存在'); goBack(); return; }
+  f = m ? { ...m } : { name:'', status:'watched', rating:null, date:'', favorite:false, review:'' };
+  document.getElementById('fName').value = f.name;
+  document.getElementById('fDate').value = f.date || '';
+  document.getElementById('fReview').value = f.review;
+  document.getElementById('fCounter').textContent = f.review.length + '/500';
+  document.getElementById('fRating').value = f.rating == null ? 16 : f.rating * 2;
+  document.getElementById('fRatingText').textContent = (f.rating == null ? 8 : f.rating).toFixed(1);
+  document.getElementById('saveBtn').textContent = m ? '保存修改' : '添加电影';
+  setStatus(f.status);
+  document.getElementById('fRatingSw').classList.toggle('on', f.rating != null);
+  document.getElementById('ratingArea').style.display = f.rating != null ? 'block' : 'none';
+  document.getElementById('fFavSw').classList.toggle('on', !!f.favorite);
+  onDateUI(); hideErr();
+}
+function setStatus(v) {
+  f.status = v;
+  document.getElementById('segWatched').className = 'seg-item' + (v==='watched' ? ' on-watched' : '');
+  document.getElementById('segWant').className = 'seg-item' + (v==='want' ? ' on-want' : '');
+}
+function toggleRating() {
+  const sw = document.getElementById('fRatingSw');
+  sw.classList.toggle('on');
+  const on = sw.classList.contains('on');
+  document.getElementById('ratingArea').style.display = on ? 'block' : 'none';
+  f.rating = on ? parseFloat(document.getElementById('fRatingText').textContent) : null;
+}
+function onRating(v) {
+  f.rating = v / 2;
+  document.getElementById('fRatingText').textContent = f.rating.toFixed(1);
+}
+function onDateUI() {
+  const has = !!f.date;
+  const el = document.getElementById('fDate');
+  el.classList.toggle('ph-t', !has);
+  document.getElementById('dateClear').style.display = has ? 'inline' : 'none';
+}
+function clearDate() { f.date = ''; document.getElementById('fDate').value = ''; onDateUI(); }
+function toggleFav() {
+  const sw = document.getElementById('fFavSw');
+  sw.classList.toggle('on');
+  f.favorite = sw.classList.contains('on');
+}
+function hideErr(){ document.getElementById('fNameErr').style.display='none'; }
+function saveMovie() {
+  if (!f.name.trim()) {
+    document.getElementById('fName').classList.add('err');
+    document.getElementById('fNameErr').style.display = 'block';
+    toast('电影名称必填'); return;
+  }
+  const payload = { name: f.name.trim(), status: f.status, rating: f.rating, date: f.date || '', favorite: !!f.favorite, review: (f.review||'').trim().slice(0,500) };
+  if (f.id) {
+    const i = movies.findIndex(x => x.id === f.id);
+    movies[i] = Object.assign({}, movies[i], payload);
+    toast('已保存');
+  } else {
+    payload.id = 'm' + Date.now(); payload.createdAt = Date.now();
+    movies.unshift(payload);
+    toast('已添加');
+  }
+  save(movies);
+  setTimeout(goBack, 400);
+}
+
+/* ================= 详情 ================= */
+function renderDetail() {
+  const m = movies.find(x => x.id === currentId);
+  if (!m) { toast('记录已被删除'); setTimeout(goBack, 400); return; }
+  const hero = document.getElementById('dHero');
+  hero.textContent = m.name[0];
+  hero.style.background = `linear-gradient(160deg, ${colorOf(m.name)}, #1a1429)`;
+  document.getElementById('dName').textContent = m.name;
+  document.getElementById('dFav').textContent = m.favorite ? '★ 已收藏' : '';
+  document.getElementById('dMeta').innerHTML =
+    `<span class="badge badge-${m.status}">${m.status==='watched'?'已看':'想看'}</span>` +
+    (m.date ? `<span class="dim">观影日期 ${m.date}</span>` : '');
+  document.getElementById('dRating').innerHTML = m.rating == null
+    ? '<span class="dim">未评分</span>'
+    : `<span class="r-big">${m.rating.toFixed(1)}</span><span class="dim"> / 10</span><span style="color:var(--accent)">★</span>`;
+  document.getElementById('dReview').innerHTML = m.review ? esc(m.review) : '<span class="dim">还没有写短评</span>';
+}
+function askDelete() {
+  const m = movies.find(x => x.id === currentId);
+  showModal('删除确认', `确定删除《${esc(m.name)}》吗？此操作不可恢复。`, '删除', () => {
+    movies = movies.filter(x => x.id !== currentId);
+    save(movies);
+    toast('已删除');
+    setTimeout(goBack, 400);
+  });
+}
+
+/* ================= 备份 ================= */
+let pendingImportText = '';
+function exportJson() {
+  const blob = new Blob([JSON.stringify(movies, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'movie-memo-backup.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('已导出 JSON 文件');
+}
+function onFilePicked(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { pendingImportText = reader.result; askImport(); input.value = ''; };
+  reader.readAsText(file);
+}
+function askImport() {
+  const text = (pendingImportText || document.getElementById('importText').value).trim();
+  pendingImportText = '';
+  if (!text) { toast('请先选择文件或粘贴 JSON'); return; }
+  showModal('导入确认', `导入将覆盖当前全部 ${movies.length} 条记录，确定继续吗？`, '覆盖导入', () => {
+    const result = validateImport(text);
+    if (result === null) {
+      showModal('导入失败', 'JSON 格式不正确或缺少必填字段，原有数据未受影响。', '知道了', null, true);
+    } else {
+      movies = result;
+      save(movies);
+      document.getElementById('importText').value = '';
+      document.getElementById('bTotal').textContent = movies.length;
+      toast('已导入 ' + movies.length + ' 条');
+    }
+  });
+}
+function validateImport(text) {
+  let data;
+  try { data = JSON.parse(text); } catch(e){ return null; }
+  if (!Array.isArray(data)) return null;
+  const ok = data.every(it => it && typeof it.name === 'string' && it.name.trim() &&
+    (it.status === 'watched' || it.status === 'want'));
+  if (!ok) return null;
+  return data.map((it, i) => ({
+    id: typeof it.id === 'string' ? it.id : 'm' + Date.now() + '_' + i,
+    name: it.name.trim(), status: it.status,
+    rating: typeof it.rating === 'number' ? it.rating : null,
+    date: typeof it.date === 'string' ? it.date : '',
+    favorite: !!it.favorite,
+    review: typeof it.review === 'string' ? it.review.slice(0,500) : '',
+    createdAt: typeof it.createdAt === 'number' ? it.createdAt : Date.now()
+  }));
+}
+
+/* ================= toast & modal ================= */
+let toastTimer;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1500);
+}
+let modalCb = null;
+function showModal(title, content, okText, cb, hideCancel) {
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mContent').innerHTML = content;
+  document.getElementById('mOk').textContent = okText || '确定';
+  document.getElementById('mCancel').style.display = hideCancel ? 'none' : 'block';
+  modalCb = cb;
+  document.getElementById('modalMask').classList.add('show');
+}
+function closeModal(ok) {
+  document.getElementById('modalMask').classList.remove('show');
+  if (ok && modalCb) modalCb();
+  modalCb = null;
+}
+
+render();
+</script>
+</body>
+</html>
